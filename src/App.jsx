@@ -413,24 +413,96 @@ export default function QuantumReadyScanner() {
 
             {/* Download PDF Button */}
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-              <button onClick={async () => {
-                try {
-                  const res = await fetch("http://localhost:5000/api/report", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(data),
-                  });
-                  if (!res.ok) throw new Error("Backend unavailable");
-                  const blob = await res.blob();
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `pqc-assessment-${data.domain}.pdf`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                } catch {
-                  alert("PDF export requires the backend running (python backend/app.py)");
-                }
+              <button onClick={() => {
+                const pc = { critical:"#ff3b30", high:"#ff9500", medium:"#ffcc00", low:"#007aff" };
+                const sc = (s) => s >= 80 ? "#34c759" : s >= 50 ? "#ffcc00" : "#ff3b30";
+                const gc = (g) => g.startsWith("A") ? "#34c759" : g === "B" ? "#ffcc00" : "#ff3b30";
+                const d = data;
+                const pqc = d.pqcAssessment || {};
+                const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>PQC Assessment - ${d.domain}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',sans-serif; color:#1a1a2e; padding:40px 50px; font-size:11px; line-height:1.5; }
+  @media print { body { padding:20px 30px; } @page { margin:15mm; size:A4; } }
+  .mono { font-family:'JetBrains Mono',monospace; }
+  h1 { font-size:24px; margin-bottom:2px; color:#0a0e14; }
+  h2 { font-size:15px; color:#0a0e14; margin:24px 0 10px; padding-bottom:6px; border-bottom:2px solid #00e6b4; }
+  h3 { font-size:12px; color:#333; margin:14px 0 6px; }
+  .header-line { height:3px; background:linear-gradient(90deg,#00e6b4,#00b4d8); margin:8px 0 20px; border-radius:2px; }
+  .meta { color:#666; font-size:11px; margin-bottom:4px; }
+  .scores { display:flex; gap:30px; margin:16px 0 20px; }
+  .score-box { text-align:center; padding:16px 24px; border:1px solid #e0e0e0; border-radius:10px; background:#f8fafb; }
+  .score-val { font-size:36px; font-weight:800; font-family:'JetBrains Mono',monospace; }
+  .score-label { font-size:10px; color:#888; text-transform:uppercase; letter-spacing:1.5px; margin-top:4px; }
+  table { width:100%; border-collapse:collapse; margin:8px 0 16px; font-size:10px; }
+  th { background:#0a0e14; color:#fff; text-align:left; padding:7px 10px; font-size:9px; text-transform:uppercase; letter-spacing:1px; }
+  td { padding:6px 10px; border-bottom:1px solid #eee; }
+  tr:nth-child(even) { background:#f8fafb; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:3px; font-size:9px; font-weight:700; }
+  .tag-safe { background:#e8f9f0; color:#34c759; }
+  .tag-risk { background:#fff0f0; color:#ff3b30; }
+  .tag-warn { background:#fff8e0; color:#e6a800; }
+  .rec { margin:10px 0; padding:10px 14px; border-left:3px solid; border-radius:0 6px 6px 0; background:#fafafa; }
+  .pqc-item { margin:8px 0; padding:8px 12px; border-radius:6px; background:#f8fafb; border:1px solid #eee; }
+  .pqc-score { font-size:18px; font-weight:700; font-family:'JetBrains Mono',monospace; margin-right:10px; }
+  .footer { margin-top:30px; padding-top:10px; border-top:1px solid #ddd; color:#999; font-size:9px; }
+</style></head><body>
+<h1>Post-Quantum Cryptography Assessment</h1>
+<div class="header-line"></div>
+<div class="meta"><b>Target:</b> <span class="mono">${d.domain}</span> &nbsp;|&nbsp; <b>IP:</b> <span class="mono">${d.ip}</span> &nbsp;|&nbsp; <b>Scanned:</b> ${(d.scanDate||"").slice(0,10)}</div>
+
+<h2>Executive Summary</h2>
+<div class="scores">
+  <div class="score-box"><div class="score-val" style="color:${gc(d.grade)}">${d.grade}</div><div class="score-label">TLS Grade</div></div>
+  <div class="score-box"><div class="score-val" style="color:${sc(d.score)}">${d.score}</div><div class="score-label">TLS Score</div></div>
+  <div class="score-box"><div class="score-val" style="color:${sc(pqc.overallScore||0)}">${pqc.overallScore||0}</div><div class="score-label">PQC Readiness</div></div>
+</div>
+<p>This assessment identified <b style="color:#ff3b30">${(d.recommendations||[]).filter(r=>r.priority==="critical").length} critical</b> and <b style="color:#ff9500">${(d.recommendations||[]).filter(r=>r.priority==="high").length} high</b> priority findings.</p>
+
+<h2>Protocol Support</h2>
+<table><tr><th>Protocol</th><th>Status</th><th>Assessment</th></tr>
+${(d.protocols||[]).map(p=>`<tr><td class="mono">${p.name}</td><td>${p.offered?"Enabled":"Disabled"}</td><td><span class="tag ${p.safe?"tag-safe":"tag-risk"}">${p.safe?"OK":"RISK"}</span></td></tr>`).join("")}
+</table>
+
+<h2>Cipher Suites</h2>
+<table><tr><th>Cipher</th><th>Protocol</th><th>PQC Status</th></tr>
+${(d.ciphers||[]).slice(0,12).map(c=>`<tr><td class="mono" style="font-size:9px">${c.name}</td><td>${c.protocol}</td><td><span class="tag ${c.pqcSafe?"tag-safe":"tag-risk"}">${c.pqcSafe?"SAFE":"AT RISK"}</span></td></tr>`).join("")}
+</table>
+
+<h2>Key Exchange Mechanisms</h2>
+${(d.kems||[]).length ? d.kems.map(k=>`<p>✅ <b class="mono">${k}</b> — Post-quantum hybrid KEM active</p>`).join("") : "<p>❌ No PQC key exchange mechanisms detected</p>"}
+
+<h2>Certificate</h2>
+<table>
+<tr><td style="width:120px;color:#888;font-weight:600">Server Key</td><td class="mono">${d.certificate?.keySize||""}</td></tr>
+<tr><td style="color:#888;font-weight:600">Signature</td><td class="mono">${d.certificate?.signatureAlg||""}</td></tr>
+<tr><td style="color:#888;font-weight:600">Issuer</td><td>${d.certificate?.issuer||""}</td></tr>
+<tr><td style="color:#888;font-weight:600">Common Name</td><td class="mono">${d.certificate?.cn||""}</td></tr>
+<tr><td style="color:#888;font-weight:600">PQC Safe</td><td><span class="tag ${d.certificate?.pqcSafe?"tag-safe":"tag-risk"}">${d.certificate?.pqcSafe?"Yes":"No — quantum-vulnerable"}</span></td></tr>
+</table>
+
+<h2>PQC Readiness Breakdown</h2>
+${["keyExchange","signatures","certificate","cipherStrength","sessionResumption"].map(k=>{
+  const item = pqc[k]; if(!item) return "";
+  const label = k.replace(/([A-Z])/g," $1").replace(/^./,s=>s.toUpperCase());
+  return `<div class="pqc-item"><span class="pqc-score" style="color:${sc(item.score)}">${item.score}</span><b>${label}</b><br><span style="color:#666">${item.detail}</span></div>`;
+}).join("")}
+
+<h2>Vulnerability Assessment</h2>
+<table><tr><th>Vulnerability</th><th>Status</th></tr>
+${(d.vulnerabilities||[]).map(v=>`<tr><td>${v.name}</td><td><span class="tag ${v.status==="safe"?"tag-safe":v.status==="warn"?"tag-warn":"tag-risk"}">${v.status==="safe"?"NOT VULNERABLE":v.status==="warn"?"WARNING":"VULNERABLE"}</span></td></tr>`).join("")}
+</table>
+
+<h2>Remediation Action Plan</h2>
+${(d.recommendations||[]).map((r,i)=>`<div class="rec" style="border-color:${pc[r.priority]||"#007aff"}"><b style="color:${pc[r.priority]||"#007aff"}">[${r.priority.toUpperCase()}]</b> <b>${i+1}. ${r.title}</b><br>${r.description}<br><span style="color:#888;font-size:9px">Timeline: ${r.timeline}</span></div>`).join("")}
+
+<div class="footer">Generated by Quantum Ready PQC Migration-as-a-Service &nbsp;|&nbsp; ${new Date().toISOString().slice(0,10)} &nbsp;|&nbsp; This is an automated assessment. Review with qualified security professionals before implementation.</div>
+</body></html>`;
+                const w = window.open("", "_blank");
+                w.document.write(html);
+                w.document.close();
+                setTimeout(() => w.print(), 500);
               }} style={{
                 padding: "8px 20px", borderRadius: 8, border: "1px solid rgba(0,230,180,0.3)",
                 background: "rgba(0,230,180,0.08)", color: "#00e6b4", fontSize: 12,
