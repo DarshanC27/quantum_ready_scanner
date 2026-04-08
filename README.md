@@ -13,33 +13,38 @@ Assess the post-quantum cryptographic readiness of any domain. Built for SMBs mi
 
 ## Quick Start
 
+### Frontend only (demo mode)
 ```bash
-# Clone the repo
-git clone https://github.com/YOUR_USERNAME/quantum-ready-scanner.git
-cd quantum-ready-scanner
-
-# Install dependencies
+git clone https://github.com/DarshanC27/quantum_ready_scanner.git
+cd quantum_ready_scanner
 npm install
+npm run dev
+```
 
-# Start dev server
+### Full stack (live scanning)
+```bash
+# Terminal 1 — Backend
+cd backend
+pip install -r requirements.txt
+git clone https://github.com/drwetter/testssl.sh.git ~/testssl.sh
+python app.py
+
+# Terminal 2 — Frontend
+npm install
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Running a Real Scan
+The frontend calls the backend at `localhost:5000`. If the backend is unavailable, it falls back to sample data.
 
-1. Install [testssl.sh](https://github.com/drwetter/testssl.sh):
-   ```bash
-   git clone https://github.com/drwetter/testssl.sh.git
-   ```
+## Configuration
 
-2. Run a scan with JSON output:
-   ```bash
-   ./testssl.sh --jsonfile results.json https://your-target.com
-   ```
-
-3. The dashboard currently uses sample data. To connect live scans, add a backend API that runs testssl.sh and returns parsed JSON (backend integration coming soon).
+Set the path to testssl.sh via environment variable:
+```bash
+export TESTSSL_PATH=~/testssl.sh/testssl.sh
+python backend/app.py
+```
 
 ## Tech Stack
 
@@ -53,9 +58,12 @@ quantum-ready-scanner/
 ├── index.html
 ├── package.json
 ├── vite.config.js
-└── src/
-    ├── main.jsx
-    └── App.jsx          # Scanner dashboard component
+├── src/
+│   ├── main.jsx
+│   └── App.jsx              # Scanner dashboard
+└── backend/
+    ├── app.py                # Flask API — runs testssl.sh
+    └── requirements.txt
 ```
 
 ## Roadmap
