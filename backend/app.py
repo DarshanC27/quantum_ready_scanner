@@ -431,5 +431,90 @@ def health():
     })
 
 
+@app.route("/api/report", methods=["POST"])
+def report():
+    """Generate a PDF report from scan data."""
+    from flask import send_file
+    from pdf_report import generate_pdf
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No scan data provided"}), 400
+
+    try:
+        pdf_bytes = generate_pdf(data)
+        domain = data.get("domain", "scan")
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"pqc-assessment-{domain}.pdf",
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/analyze", methods=["POST"])
+def analyze():
+    """AI-powered PQC risk analysis."""
+    from features import ai_analyze
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No scan data provided"}), 400
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    try:
+        result = ai_analyze(data, api_key)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/certs/<domain>", methods=["GET"])
+def certs(domain):
+    """Discover certificates for a domain via CT logs."""
+    from features import discover_certificates
+
+    domain = domain.replace("https://", "").replace("http://", "").split("/")[0]
+    try:
+        result = discover_certificates(domain)
+        return jsonify({"domain": domain, "certificates": result, "total": len(result)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/cbom", methods=["POST"])
+def cbom():
+    """Generate Cryptographic Bill of Materials."""
+    from features import generate_cbom
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No scan data provided"}), 400
+
+    try:
+        result = generate_cbom(data)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/playbook/<server_type>", methods=["GET"])
+def playbook(server_type):
+    """Get remediation playbook for a specific server type."""
+    from features import generate_remediation_playbook
+
+    valid_types = ["nginx", "apache", "aws_alb"]
+    if server_type not in valid_types:
+        return jsonify({"error": f"Invalid server type. Use: {valid_types}"}), 400
+
+    try:
+        result = generate_remediation_playbook({}, server_type)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
